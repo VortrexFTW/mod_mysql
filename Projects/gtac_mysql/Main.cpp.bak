@@ -1,0 +1,547 @@
+#include <pch.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <mysql.h>
+#include <malloc.h>
+
+using namespace Galactic3D;
+using namespace Galactic3D::Interfaces;
+
+static CModule* g_pModule;
+
+inline void* _cdecl RegisterModule(void*, Galactic3D::Interfaces::IModuleInterface* pModuleInterface, const char* pszModuleName)
+{
+	pModuleInterface->SetInternalName("MySQL"));
+
+	CModule* pModule = new CModule;
+	pModule->m_pModuleInterface = pModuleInterface;
+
+	g_pModule = pModule;
+
+	pModuleInterface->CreateInstance(ID_ArgumentFactory, (void**)&pModule->m_pArgumentFactory));
+
+	pModuleInterface->GetNamespace(&pModule->m_pNamespace));
+
+	pNamespace->NewClass(&pModule->m_pMySQLConnectionClass, "Connection");
+	pNamespace->NewClass(&pModule->m_pMySQLResultClass, "Result");
+
+	ModuleRegister();
+
+	return pModule;
+}
+
+void ModuleRegister()
+{
+	pNamespace->RegisterFunction("connect", "ssssi", [](INativeState* pState, int32_t argc, void* pUser) {
+		CModule* pModule = (CModule*)pUser;
+
+		const char* szHostname = pState->CheckString(0);
+		const char* szUsername = pState->CheckString(1);
+		const char* szPassword = pState->CheckString(2);
+		const char* szDatabase = pState->CheckString(3);
+
+		int iPort;
+		if (!pState->CheckInt32(4, iPort))
+			return false;
+
+		MYSQL *pMySQL;
+		if (!(pMySQL = mysql_init(NULL))) {
+			pState->SetError("[MySQL] connect: MySQL initialization failed");
+			return false;
+		}
+
+		if (!mysql_real_connect(pMySQL, szHostname, szUsername, szPassword, szDatabase, iPort, 0, 0)) {
+			mysql_close(pMySQL);
+			pState->SetError("[MySQL] connect: %s (%i)", mysql_error(pMySQL), mysql_errno(pMySQL));
+			return false;
+		}
+
+		Strong<IBaseObject> pMySQLObject;
+		pMySQLObject->SetPrivate((void*)pMySQL);
+		pMySQLObject->AssignClass(pModule->m_pMySQLConnectionClass);
+		pState->ReturnObject(pMySQLObject);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("query", "s", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		MYSQL_RES *pResult;
+		Strong<IBaseObject> pMySQLConnection;
+		Strong<IBaseObject> pMySQLResult;
+		Strong<IReflectedClass> pMySQLResultClass;
+		CModule* pModule = (CModule*)pUser;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] error: MySQL connection is invalid.");
+			return false;
+		}
+
+		const char* szQuery = pState->CheckString(0);
+
+		if (mysql_query(pMySQL, szQuery)) {
+			pState->SetError("[MySQL] query: %s (%i)", mysql_error(pMySQL), mysql_errno(pMySQL));
+			pState->ReturnBoolean(false);
+			return false;
+		}
+
+		pResult = mysql_store_result(pMySQL);
+		if (!pResult) {
+			pState->ReturnNull();
+		}
+
+		pMySQLResult->AssignClass(pModule->m_pMySQLResultClass);
+		pMySQLResult->SetPrivate((void*)pResult);
+		pState->ReturnObject(pMySQLResult);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("close", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		Strong<IBaseObject> pMySQLObject;
+		CModule* pModule = (CModule*)pUser;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		mysql_close(pMySQL);
+		pMySQLObject->SetPrivate(nullptr);
+
+		pState->ReturnBoolean(true);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("ping", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] ping: MySQL connection is invalid.");
+			return false;
+		}
+
+		if (mysql_ping(pMySQL)) {
+			pState->ReturnBoolean(false);
+		}
+		else {
+			pState->ReturnBoolean(false);
+		}
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("escapeString", "s", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] escapeString: MySQL connection is invalid.");
+			return false;
+		}
+
+		const char* szString = pState->CheckString(0);
+
+		char *szTemp;
+
+		uiLen = strlen(szString);
+		szTemp = (char*)alloca(uiLen * 2 + 1);
+
+		mysql_real_escape_string(pMySQL, szTemp, szString, uiLen);
+
+		uiLen = strlen(szTemp);
+		szTemp[uiLen + 1] = '\0';
+
+		pState->ReturnStringZ(szTemp);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("selectDatabase", "s", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] selectDatabase: MySQL connection is invalid.");
+			return false;
+		}
+
+		const char* szDatabaseName = pState->CheckString(0);
+
+		if (mysql_select_db(pMySQL, szDatabaseName)) {
+			pState->SetError("[MySQL] selectDatabase: %s (%i)", mysql_error(pMySQL), mysql_errno(pMySQL));
+			pState->ReturnBoolean(false);
+			return false;
+		}
+
+		pState->ReturnBoolean(true);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("changeUser", "sss", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] changeUser: MySQL connection is invalid.");
+			return false;
+		}
+
+		const char* szUser = pState->CheckString(0);
+		const char* szPassword = pState->CheckString(1);
+		const char* szDatabase = pState->CheckString(2);
+
+		if (mysql_change_user(pMySQL, szUser, szPassword, szDatabase)) {
+			pState->SetError("[MySQL] changeUser: %s (%i)", mysql_error(pMySQL), mysql_errno(pMySQL));
+			pState->ReturnBoolean(false);
+			return false;
+		}
+
+		pState->ReturnBoolean(true);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("insertId", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] changeUser: MySQL connection is invalid.");
+			return false;
+		}
+
+		pState->ReturnInt32(mysql_insert_id(pMySQL));
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("affectedRows", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] changeUser: MySQL connection is invalid.");
+			return false;
+		}
+
+		pState->ReturnInt32(mysql_affected_rows(pMySQL));
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("warningCount", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] warningCount: MySQL connection is invalid.");
+			return false;
+		}
+
+		pState->ReturnInt32(mysql_warning_count(pMySQL));
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("info", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] info: MySQL connection is invalid.");
+			return false;
+		}
+
+		const char* szInfo = mysql_info(pMySQL);
+
+		if (!szInfo) {
+			pState->ReturnNull();
+			return false;
+		}
+
+		pState->ReturnStringZ(szInfo);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("errorNum", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] errorNum: MySQL connection is invalid.");
+			return false;
+		}
+
+		pState->ReturnInt32(mysql_errno(pMySQL));
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLConnectionClass->RegisterFunction("error", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL *pMySQL;
+		Strong<IBaseObject> pMySQLConnection;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL*)pMySQLConnection->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] error: MySQL connection is invalid.");
+			return false;
+		}
+
+		pState->ReturnStringZ(mysql_error(pMySQL));
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLResultClass->RegisterFunction("free", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL_RES *pMySQL;
+		Strong<IBaseObject> pMySQLResult;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL_RES*)pMySQLResult->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] error: MySQL result is invalid.");
+			return false;
+		}
+
+		mysql_free_result(pMySQL);
+
+		pState->ReturnBoolean(true);
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLResultClass->RegisterFunction("numRows", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL_RES *pMySQL;
+		Strong<IBaseObject> pMySQLResult;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL_RES*)pMySQLResult->GetPrivate();
+
+		pState->ReturnInt32(mysql_num_rows(pMySQL));
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLResultClass->RegisterFunction("numFields", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL_RES *pMySQL;
+		Strong<IBaseObject> pMySQLResult;
+		size_t uiLen = 0;
+
+		pMySQL = (MYSQL_RES*)pMySQLResult->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] error: MySQL result is invalid.");
+			return false;
+		}
+
+		pState->ReturnInt32(mysql_num_fields(pMySQL));
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLResultClass->RegisterFunction("fetchAssoc", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL_RES *pMySQL;
+		Strong<IBaseObject> pMySQLResult;
+		MYSQL_ROW pRow;
+		unsigned int ui = 0;
+		unsigned int uiColumns = 0;
+		MYSQL_FIELD* pField;
+
+		pMySQL = (MYSQL_RES*)pMySQLResult->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] error: MySQL result is invalid.");
+			return false;
+		}
+
+		pRow = mysql_fetch_row(pMySQL);
+		if (!pRow) {
+			pState->ReturnNull();
+			return false;
+		}
+
+		uiColumns = mysql_num_fields(pMySQL);
+		if (uiColumns > 0) {
+			Strong<IArgument> pAssocArgument;
+			pArgumentFactory->CreateDictionary(&pAssocArgument);
+
+			Strong<IDictionary> pAssocDictionary;
+			pAssocArgument->GetInterface(ID_Dictionary, (void**)&pAssocDictionary);
+			pAssocDictionary->Resize(uiColumns);
+
+			Strong<IArgument> pNullArgument;
+			pArgumentFactory->CreateNull(&pNullArgument);
+
+			Strong<IArgument> pFieldValue;
+
+			mysql_field_seek(pMySQL, 0);
+			for (; ui < uiColumns; ui++) {
+				pField = mysql_fetch_field(pMySQL);
+				Strong<IArgument> pFieldValue;
+
+				if (!pField || !pRow[ui])
+				{
+					pAssocDictionary->Set(pField->name, pNullArgument);
+				}
+				else
+				{
+					switch (pField->type)
+					{
+					case MYSQL_TYPE_TINY:
+					case MYSQL_TYPE_SHORT:
+					case MYSQL_TYPE_LONG:
+					case MYSQL_TYPE_LONGLONG:
+					case MYSQL_TYPE_INT24:
+					case MYSQL_TYPE_YEAR:
+					case MYSQL_TYPE_BIT: {
+						int32_t i = atoi(pRow[ui]);
+						pFieldValue->ToInt32(i);
+						break;
+					}
+
+					case MYSQL_TYPE_DECIMAL:
+					case MYSQL_TYPE_NEWDECIMAL:
+					case MYSQL_TYPE_FLOAT:
+					case MYSQL_TYPE_DOUBLE: {
+						float f = atof(pRow[ui]);
+						pFieldValue->ToSingle(f);
+						break;
+					}
+
+					case MYSQL_TYPE_NULL: {
+						pAssocDictionary->Set(pField->name, pNullArgument);
+						break;
+					}
+
+					default: {
+						pFieldValue->ToString((const char**)pRow[ui], (size_t*)strlen(pRow[ui]));
+						break;
+					}
+					}
+				}
+
+				pAssocDictionary->Set(pField->name, pFieldValue);
+			}
+
+			pState->Return(pAssocArgument);
+		}
+		return true;
+	}, pModule);
+
+	pModule->m_pMySQLResultClass->RegisterFunction("fetchRow", "", [](INativeState* pState, int32_t argc, void* pUser) {
+		MYSQL_RES *pMySQL;
+		Strong<IBaseObject> pMySQLResult;
+		MYSQL_ROW pRow;
+		unsigned int ui = 0;
+		unsigned int uiColumns = 0;
+		MYSQL_FIELD* pField;
+
+		pMySQL = (MYSQL_RES*)pMySQLResult->GetPrivate();
+
+		if (pMySQL == nullptr) {
+			pState->SetError("[MySQL] error: MySQL result is invalid.");
+			return false;
+		}
+
+		pRow = mysql_fetch_row(pMySQL);
+		if (!pRow) {
+			pState->ReturnNull();
+			return false;
+		}
+
+		uiColumns = mysql_num_fields(pMySQL);
+		if (uiColumns > 0) {
+			Strong<IArgument> pArrayArgument;
+			pArgumentFactory->CreateArray(&pArrayArgument);
+
+			Strong<IArgument> pNullArgument;
+			pArgumentFactory->CreateNull(&pNullArgument);
+
+			Strong<IArray> pRowArray;
+			pArrayArgument->GetInterface(ID_Array, (void**)&pRowArray);
+
+			Strong<IArgument> pFieldValue;
+
+			mysql_field_seek(pMySQL, 0);
+			for (; ui < uiColumns; ui++) {
+				pField = mysql_fetch_field(pMySQL);
+				Strong<IArgument> pFieldValue;
+
+				if (!pField || !pRow[ui])
+				{
+					pRowArray->Insert(pNullArgument);
+				}
+				else
+				{
+					switch (pField->type)
+					{
+					case MYSQL_TYPE_TINY:
+					case MYSQL_TYPE_SHORT:
+					case MYSQL_TYPE_LONG:
+					case MYSQL_TYPE_LONGLONG:
+					case MYSQL_TYPE_INT24:
+					case MYSQL_TYPE_YEAR:
+					case MYSQL_TYPE_BIT: {
+						int32_t i = atoi(pRow[ui]);
+						pFieldValue->ToInt32(i);
+						break;
+					}
+
+					case MYSQL_TYPE_DECIMAL:
+					case MYSQL_TYPE_NEWDECIMAL:
+					case MYSQL_TYPE_FLOAT:
+					case MYSQL_TYPE_DOUBLE: {
+						float f = atof(pRow[ui]);
+						pFieldValue->ToSingle(f);
+						break;
+					}
+
+					case MYSQL_TYPE_NULL: {
+						pRowArray->Insert(pNullArgument);
+						break;
+					}
+
+					default: {
+						pFieldValue->ToString((const char**)pRow[ui], (size_t*)strlen(pRow[ui]));
+						break;
+					}
+
+					}
+				}
+
+				pRowArray->Insert(pFieldValue);
+			}
+
+			pState->Return(pArrayArgument);
+		}
+		return true;
+	}, pModule);
+
+	return pModule;
+}
+
+extern "C" __declspec(dllexport) void _cdecl UnregisterModule(void* pUser)
+{
+	delete (CModule*)pUser;
+}
