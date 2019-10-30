@@ -62,8 +62,10 @@ void CMySQLResult::Free()
 
 void ModuleRegister()
 {
+	//printf("Registering module");
 	g_ConnectionClass = SDK::Class("Connection");
 	g_ResultClass = SDK::Class("Result");
+	//printf("Classes created");
 
 	SDK::RegisterFunction("connect", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -95,6 +97,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.connect function registered");
 
 	g_ConnectionClass.RegisterFunction("query", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -128,6 +132,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.query function registered");
 
 	g_ConnectionClass.RegisterFunction("close", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -147,7 +153,9 @@ void ModuleRegister()
 		SDK_ENDTRY;
 	});
 
-	g_ConnectionClass.RegisterFunction("ping", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	//printf("Connection.close function registered");
+
+	g_ConnectionClass.AddProperty("ping", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -165,6 +173,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.ping property registered");
 
 	g_ConnectionClass.RegisterFunction("escapeString", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -192,6 +202,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.escapeString function registered");
 
 	g_ConnectionClass.RegisterFunction("selectDatabase", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -213,6 +225,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.selectDatabase function registered");
 
 	g_ConnectionClass.RegisterFunction("changeUser", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -238,8 +252,10 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.changeUser function registered");
 
-	g_ConnectionClass.RegisterFunction("insertId", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	g_ConnectionClass.AddProperty("insertId", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -256,8 +272,10 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.insertId property registered");
 
-	g_ConnectionClass.RegisterFunction("affectedRows", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	g_ConnectionClass.AddProperty("affectedRows", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -274,8 +292,10 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.affectedRows property registered");
 
-	g_ConnectionClass.RegisterFunction("warningCount", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	g_ConnectionClass.AddProperty("warningCount", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -292,6 +312,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.warningCount property registered");
 
 	g_ConnectionClass.RegisterFunction("info", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -319,8 +341,10 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.info property registered");
 
-	g_ConnectionClass.RegisterFunction("errorNum", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	g_ConnectionClass.AddProperty("errorNum", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -337,8 +361,10 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.errorNum property registered");
 
-	g_ConnectionClass.RegisterFunction("error", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	g_ConnectionClass.AddProperty("error", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -355,6 +381,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Connection.error property registered");
 
 	g_ResultClass.RegisterFunction("free", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -372,8 +400,10 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Result.free function registered");
 
-	g_ResultClass.RegisterFunction("numRows", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	g_ResultClass.AddProperty("numRows", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -390,8 +420,10 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Result.numRows property registered");
 
-	g_ResultClass.RegisterFunction("numFields", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
+	g_ResultClass.RegisterFunction("fetchAssoc", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
 
 		SDK::State State(pState);
@@ -408,6 +440,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Result.fetchAssoc property registered");
 
 	g_ResultClass.RegisterFunction("fetchAssoc", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -497,6 +531,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Result.fetchAssoc function registered");
 
 	g_ResultClass.RegisterFunction("fetchRow", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;
@@ -586,6 +622,8 @@ void ModuleRegister()
 
 		SDK_ENDTRY;
 	});
+	
+	//printf("Result.fetchRow function registered");
 }
 
 void ModuleUnregister()
