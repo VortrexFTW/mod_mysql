@@ -62,10 +62,8 @@ void CMySQLResult::Free()
 
 void ModuleRegister()
 {
-	//printf("Registering module");
 	g_ConnectionClass = SDK::Class("Connection");
 	g_ResultClass = SDK::Class("Result");
-	//printf("Classes created");
 
 	SDK::RegisterFunction("connect", [](Galactic3D::Interfaces::INativeState* pState, int32_t argc, void* pUser) {
 		SDK_TRY;

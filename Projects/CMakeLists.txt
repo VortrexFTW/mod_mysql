@@ -1,1 +1,1 @@
-add_subdirectory(gtac_mysql)
+add_subdirectory(mod_mysql)
