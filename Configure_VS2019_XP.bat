@@ -2,4 +2,4 @@
 set CMAKE_GENERATOR="Visual Studio 16 2019"
 set CMAKE_GENERATOR_PLATFORM=Win32
 set CMAKE_GENERATOR_TOOLSET=v141_xp
-call Compile.bat
+call Configure.bat
